@@ -6,6 +6,7 @@ All notable changes to this plugin will be documented here.
 
 - List pending requests from both inboxes (`you_may_know` / Priority and `low_quality` / Hidden) with `get_chat_message_requests`, and decrypt them like other chats. Opening one with `get_chat_message_request` is only when the owner asked, because it marks those messages delivered.
 - Accept with `accept_chat_message_request` only when the owner said to accept. A reply does not accept a request. Do not accept while still paging the list.
+- See a chat photo or video when the owner asks: download it with `chat_media_download`, decrypt it with the helper's `decrypt-media`, and open the file. Until that MCP tool is live, describe media from its fields.
 
 ## 2.6.2 — Focus X Chat summaries on the message
 
