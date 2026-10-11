@@ -199,7 +199,7 @@ Then follow [error 1](#1-sign-in-failed) or [error 2](#2-account-not-ready). Do 
 
 ### X Chat scopes
 
-**When:** the user wants X Chat / DMs, other X tools work, but Chat tools are missing or a Chat call 403s for `dm.read` / `dm.write`.
+**When:** the user wants X Chat / DMs, other X tools work, but Chat tools are missing or a Chat call 403s for `dm.read`, `dm.write` or `media.write`.
 
 **Say:**
 
@@ -390,7 +390,7 @@ Not in git with this plugin. Reuse that same `XCHAT_ROOT` on later turns.
 
 `--user-id` is the numeric X id from `get_users_me`. Do not use the shell’s `$UID` (Unix account id).
 
-MCP owns OAuth (`dm.read` / `dm.write`) and ciphertext. Local `chatxdk` + `xchat_lite.py` own Juicebox unlock, decrypt, encrypt, prepare-keys.
+MCP owns OAuth (`dm.read` / `dm.write` / `media.write`) and ciphertext. Local `chatxdk` + `xchat_lite.py` own Juicebox unlock, decrypt, encrypt, prepare-keys.
 
 ### MCP tools (wire)
 
@@ -532,7 +532,7 @@ Do not accept while you are still paging the list.
 
 ### Photos and videos
 
-Open media only when the owner asks about it or seeing it is needed to answer. This needs `chat_media_download` live on the MCP (xai-org/xai#349031), and its scope is still being decided: if the tool is missing or returns 403, describe the media from its fields. Reconnecting won't help.
+Open media only when the owner asks about it or seeing it is needed to answer. This needs `chat_media_download` live on the MCP (xai-org/xai#349031); while it's missing, describe the media from its fields. If it returns 403 for `media.write`, ask the owner once to reconnect the X plugin ([X Chat scopes](#x-chat-scopes)); if it still fails, describe the media.
 
 **Find:** in `decrypt` output, the message's `event.attachments` entry with `attachment_type` `Media` has `media_hash_key`, `media_type`, `filename`, `filesize_bytes`, `dimensions` and, for video, `duration_millis`. Link preview images are in `event.media_hashes`. One with `legacy_media_url_https`, or over 16 MiB, can't be downloaded: describe it.
 
