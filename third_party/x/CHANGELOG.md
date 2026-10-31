@@ -2,6 +2,11 @@
 
 All notable changes to this plugin will be documented here.
 
+## 2.11.0 — Unencrypted X Chat replies
+
+- Before a reply, the guide reads the other person's `receives_your_chat`. `encrypted` keeps the encrypted flow; `unencrypted` sends messages and reactions with `send_chat_message` `content`, with no helper or keys, after telling the owner it goes unencrypted; `none` says the person can't be messaged.
+- A 403 from `add_conversation_keys` or `send_chat_message` ends with a plain explanation and the owner's draft, never silence.
+
 ## 2.10.0 — Spaces, Communities, and Lists
 
 - Added Spaces (`search_spaces`, `get_spaces_by_id`, `get_spaces_by_ids`, `get_spaces_by_creator_ids`, `get_spaces_posts`), Communities (`search_communities`, `get_communities_by_id`), and Lists: eight reads plus `create_lists`, `update_lists`, member, follow, and pin writes. There's no tool to delete a list or read a community's posts. All are free.

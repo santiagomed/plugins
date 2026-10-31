@@ -232,7 +232,7 @@ Moderators apply to all the owner's broadcasts (at most 20). Mutes work only whi
 
 Use this section for Chat, XChat, inbox, DMs, unread, message requests, the Chat PIN, juicebox, and `xchat_lite`. MCP holds OAuth and raw events. The local helper `xchat_lite.py` unlocks Juicebox, decrypts, and encrypts. Never decrypt on the server, and never put the PIN, juicebox tokens, private keys, or key blobs in chat.
 
-Threads can carry messages sent without end-to-end encryption, including recent ones. `decrypt` accepts every event. Replies are always encrypted: if the peer has no Chat public keys, stop and tell the owner.
+Threads can carry messages sent without end-to-end encryption, including recent ones. `decrypt` accepts every event. Whether a reply goes encrypted, unencrypted, or not at all depends on the other person's `receives_your_chat` ([Send or reply](#send-or-reply)).
 
 ### Helper
 
@@ -292,12 +292,12 @@ Once per session:
 | `get_chat_message_requests` | Pending requests from one inbox (`inbox_type`) |
 | `get_chat_message_request` | Open one request. Marks its messages delivered |
 | `accept_chat_message_request` | Accept a received request into the inbox |
-| `send_chat_message` | Send a pre-encrypted message |
+| `send_chat_message` | Send a message or reaction: pre-encrypted (`encoded_message_create_event`) or unencrypted (`content`) |
 | `add_conversation_keys` | Publish keys from `prepare-keys` or `session-encrypt` |
 | `mark_chat_conversation_read` | Takes only `id`; marks the whole conversation read |
 | `send_chat_typing_indicator` | Optional; don't loop it |
 
-Pass key entries to the helper exactly as returned. MCP never takes plaintext to encrypt server-side; a tool that asks for plaintext isn't X Chat.
+Pass key entries to the helper exactly as returned. MCP never encrypts: plaintext `content` on `send_chat_message` is sent unencrypted, so use it only when `receives_your_chat` is `unencrypted`.
 
 ### Decrypting
 
@@ -336,8 +336,15 @@ Pending 1:1 requests aren't in `get_chat_conversations`. List, open, and accept 
 
 The owner must approve the text unless they already told you to send or reply ("reply that I'll be there"). "Check my inbox" is not approval.
 
-- **Thread with a conversation key:** fetch events and `conversation_key_events`, `session-encrypt` with the approved text, then `send_chat_message` with `id`, `message_id`, `encoded_message_create_event`, and `encoded_message_event_signature`. Confirm without dumping ciphertext.
-- **No conversation key yet** (first message, or only plain messages): get both users' public keys (`public_key` and `public_key_version`), `session-encrypt` with `prepare` set (same shape as `prepare-keys` input), call `add_conversation_keys` with its output **before** `send_chat_message`, and strip any `_local_*` fields. `add_conversation_keys` returning `UNAUTHORIZED_REQUESTING_USER` means you can't set keys there or the peer isn't on X Chat: stop and report.
+First get the other person's `receives_your_chat`: `get_chat_conversation` with `expansions=participant_ids` and `user.fields=receives_your_chat` (use the participant who isn't `{me}`), or `get_users_by_id` with `user.fields=receives_your_chat` for someone they haven't chatted with yet. Group conversations use the encrypted path.
+
+- **`encrypted`** (or the field is missing or rejected):
+  - **Thread with a conversation key:** fetch events and `conversation_key_events`, `session-encrypt` with the approved text, then `send_chat_message` with `id`, `message_id`, `encoded_message_create_event`, and `encoded_message_event_signature`. Confirm without dumping ciphertext.
+  - **No conversation key yet** (first message, or only plain messages): get both users' public keys (`public_key` and `public_key_version`), `session-encrypt` with `prepare` set (same shape as `prepare-keys` input), call `add_conversation_keys` with its output **before** `send_chat_message`, and strip any `_local_*` fields.
+- **`unencrypted`:** X can't encrypt this chat (for example, one of them has connected an app that can read their DMs). Tell the owner the message will be sent unencrypted, then `send_chat_message` with `id`, a new `message_id` (a UUID), and `content` `{"message": {"text": "..."}}`. No helper, keys, or `add_conversation_keys`. To react, send `content` `{"reaction_add": {"event_id": "...", "emoji": "..."}}` (or `reaction_remove`) with the message's event `id` from `get_chat_conversation_events`. Reacting in an encrypted chat isn't supported yet.
+- **`none`:** the owner can't message this person (a closed inbox or a block). Say so plainly and give the draft back.
+
+If `add_conversation_keys` or `send_chat_message` returns a 403, don't retry and don't go quiet: tell the owner the message wasn't sent, give X's reason (`detail`) in plain words, and paste the approved draft back so they can send it from the X app.
 
 Standalone `encrypt` fails without a conversation key; use `session-encrypt`.
 
