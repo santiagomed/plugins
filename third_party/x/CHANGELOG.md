@@ -2,6 +2,12 @@
 
 All notable changes to this plugin will be documented here.
 
+## 2.11.2 — Encrypted X Chat sends by default
+
+- The guide picks the X Chat send path before the first `send_chat_message` call: encrypted for groups and when the other person's `receives_your_chat` is `encrypted` or missing, plaintext `content` only when it's `unencrypted`, and no send when it's `none`. The contact lookup asks for `receives_your_chat` along with the participant.
+- Retries keep the approved text word for word. A 400 `encryption-required` on `content` resends it encrypted and never retries `content`; a 403 from `add_conversation_keys` resends it as plaintext only when `receives_your_chat` is `unencrypted`; any other encrypted failure never falls back to plaintext.
+- The owner approves a message once: the held draft already carries the chosen path, and when a retry needs a new draft card, the agent says it's the same message.
+
 ## 2.11.1 — Find a contact's chat, X DMs only via send_chat_message
 
 - A new "Find or message a contact" section in the guide: find someone's thread with `get_chat_conversations` `participant_query` (their @username, `type` `direct`, `expansions` `participant_ids` to confirm it's them), keep paging while `has_more` is true, and retry with their @username, instead of scanning the inbox or looking the person up first.
