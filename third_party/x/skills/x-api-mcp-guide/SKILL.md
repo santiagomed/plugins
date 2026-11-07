@@ -145,12 +145,12 @@ Once per session:
 | `get_chat_message_requests` | Pending requests from one inbox (`inbox_type`) |
 | `get_chat_message_request` | Open one request. Marks its messages delivered |
 | `accept_chat_message_request` | Accept a received request into the inbox |
-| `send_chat_message` | Send a pre-encrypted message |
+| `send_chat_message` | Send a message, encrypted by default; plaintext `content` only as a fallback ([Send or reply](#send-or-reply)) |
 | `add_conversation_keys` | Publish keys from `prepare-keys` or `session-encrypt` |
 | `mark_chat_conversation_read` | Takes only `id`; marks the whole conversation read |
 | `send_chat_typing_indicator` | Optional; don't loop it |
 
-Pass key entries to the helper exactly as returned. MCP never takes plaintext to encrypt server-side; a tool that asks for plaintext isn't X Chat.
+Pass key entries to the helper exactly as returned. MCP never encrypts for you: `content` on `send_chat_message` goes out unencrypted, so use it only where [Send or reply](#send-or-reply) says.
 
 ### Decrypting
 
@@ -167,10 +167,10 @@ Each message's `status` is `verified`, `unencrypted`, or `unverified` (an unveri
 
 To find the thread with someone the owner already chats with, or to message them:
 
-1. `get_chat_conversations` with `participant_query` set to their @username (or a word of their name if you don't know it), `type` `direct`, `max_results` 1000, and `expansions` `participant_ids`. Don't list the whole inbox, and don't look the person up to get their id first.
-2. Confirm it's them from the expanded participant's `username` and `name`. The match's `id` is the conversation id the other Chat tools take.
+1. `get_chat_conversations` with `participant_query` set to their @username (or a word of their name if you don't know it), `type` `direct`, `max_results` 1000, `expansions` `participant_ids`, and `user.fields` `username,name,receives_your_chat`. Don't list the whole inbox, and don't look the person up to get their id first.
+2. Confirm it's them from the expanded participant's `username` and `name`. The match's `id` is the conversation id the other Chat tools take, and their `receives_your_chat` says how to send ([Send or reply](#send-or-reply)).
 3. A page can be empty while `meta.has_more` is true: keep paging with `meta.next_token` and the same query until a match or `has_more` is false.
-4. No match: retry with their @username if you searched by name, then check message requests by `sender_id`. Still nothing means they have no thread with the owner yet.
+4. No match: retry with their @username if you searched by name, then check message requests by `sender_id`. Still nothing means they have no thread with the owner yet; to message them anyway, `get_users_by_username` on the owner's X connection with `user.fields` `receives_your_chat` gives their `id`, which `send_chat_message` takes as the conversation `id`.
 5. To message them, follow [Send or reply](#send-or-reply) with that `id`.
 
 ### Unread
@@ -197,14 +197,35 @@ Pending 1:1 requests aren't in `get_chat_conversations`. List, open, and accept 
 
 ### Send or reply
 
-The owner must approve the text unless they already told you to send or reply ("reply that I'll be there"). "Check my inbox" is not approval. To message someone they already chat with, find the thread first ([Find or message a contact](#find-or-message-a-contact)).
+The owner must approve the text unless they already told you to send or reply ("reply that I'll be there"). "Check my inbox" is not approval. They approve the text, not the path it takes. To message someone they already chat with, find the thread first ([Find or message a contact](#find-or-message-a-contact)).
 
-X DMs go out only through `send_chat_message`; an email or Slack draft tool can't send them, so never route a DM there or tell the owner it needs one. If the host holds a `send_chat_message` call for the owner to approve (Grok Bot shows an X Chat draft card), call it again with exactly the same arguments, the same encrypted payload included (don't re-encrypt), once they press Send or tell you to send it.
+X DMs go out only through `send_chat_message`; an email or Slack draft tool can't send them, so never route a DM there or tell the owner it needs one.
 
-- **Thread with a conversation key:** fetch events and `conversation_key_events`, `session-encrypt` with the approved text, then `send_chat_message` with `id`, `message_id`, `encoded_message_create_event`, and `encoded_message_event_signature`. Confirm without dumping ciphertext.
-- **No conversation key yet** (first message, or only plain messages): get both users' public keys (`public_key` and `public_key_version`), `session-encrypt` with `prepare` set (same shape as `prepare-keys` input), call `add_conversation_keys` with its output **before** `send_chat_message`, and strip any `_local_*` fields. `add_conversation_keys` returning `UNAUTHORIZED_REQUESTING_USER` means you can't set keys there or the peer isn't on X Chat: stop and report.
+Encrypted is the default. Pick the path before the first `send_chat_message` call, from the conversation and the other person's `receives_your_chat`: the contact lookup returns it, or call `get_chat_conversation` with `expansions` `participant_ids` and `user.fields` `receives_your_chat`.
 
-Standalone `encrypt` fails without a conversation key; use `session-encrypt`.
+| Conversation | Send |
+| --- | --- |
+| A group (`id` starts with `g`) | Encrypted |
+| `receives_your_chat` is `encrypted`, or it's missing | Encrypted |
+| `receives_your_chat` is `unencrypted` | Plaintext. X can't encrypt this chat (for example, one of them connected an app that reads their DMs), so the X app sends it unencrypted too. Say so when you show the draft |
+| `receives_your_chat` is `none` | Nothing. X won't let the owner message them (for example, a closed inbox or a block). Say so and give the draft back |
+
+- **Encrypted, thread with a conversation key:** fetch events and `conversation_key_events`, `session-encrypt` the approved text, then `send_chat_message` with `id`, `message_id`, `encoded_message_create_event`, and `encoded_message_event_signature`.
+- **Encrypted, no conversation key yet** (first message, or no event has `conversation_key_version`): get both users' public keys (`public_key` and `public_key_version`), `session-encrypt` with `prepare` set (same shape as `prepare-keys` input), call `add_conversation_keys` with its output **before** `send_chat_message`, and strip any `_local_*` fields.
+- **Plaintext:** `send_chat_message` with `id`, a new `message_id` (a UUID), and `content` `{"message": {"text": "<approved text>"}}`. No helper or keys.
+
+Confirm without dumping ciphertext. Standalone `encrypt` fails without a conversation key; use `session-encrypt`.
+
+If the host holds a `send_chat_message` call for the owner to approve (Grok Bot shows an X Chat draft card), call it again with exactly the same arguments, the same encrypted payload included (don't re-encrypt), once they press Send or tell you to send it. Different arguments make a new draft they have to confirm again, which is why the path is picked before the first call.
+
+If a send fails, retry with the same approved text, word for word:
+
+- 400 `https://api.x.com/2/problems/encryption-required` on `content`: the chat can be encrypted, and nothing was sent. Send it encrypted; never retry `content`.
+- 403 from `add_conversation_keys` ("This user can't receive encrypted chats from you right now"): X won't encrypt this chat. Read `receives_your_chat` again and send plaintext if it's `unencrypted`; otherwise stop and report.
+- Any other refusal of `content` (`xchat-setup-required`, `recipient-xchat-setup-required`, `message-request-not-supported`, `recipient-not-messageable`): it can't be sent from here. Explain X's `detail` and give the draft back. A 503 `chat-permissions-unavailable` sent nothing; retry once.
+- An encrypted send that fails for another reason (stale keys, a helper error) never falls back to plaintext: refresh the keys and encrypt again, or report.
+
+Don't ask the owner to approve the same text again. If the host shows a new draft card for the retry, tell them it's the message they already approved, now going encrypted (or unencrypted, because X can't encrypt this chat), and that it needs one more Send.
 
 ### Chat safety
 
