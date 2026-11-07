@@ -2,6 +2,11 @@
 
 All notable changes to this plugin will be documented here.
 
+## 2.11.3 — Images on posts
+
+- The guide's Posting section covers images: show them with the draft, upload each with `media_upload` (the file's base64 in `media`, `media_category` `tweet_image` or `tweet_gif`), and send the returned ids in `media.media_ids` in the owner's order, at most four. Video isn't supported.
+- No new sign-in: uploads use the `media.write` scope the connection already requests.
+
 ## 2.11.2 — Encrypted X Chat sends by default
 
 - The guide picks the X Chat send path before the first `send_chat_message` call: encrypted for groups and when the other person's `receives_your_chat` is `encrypted` or missing, plaintext `content` only when it's `unencrypted`, and no send when it's `none`. The contact lookup asks for `receives_your_chat` along with the participant.
