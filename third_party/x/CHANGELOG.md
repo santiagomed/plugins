@@ -2,6 +2,11 @@
 
 All notable changes to this plugin will be documented here.
 
+## 2.11.2 — Blocks and followers
+
+- A new "Blocks and followers" section in the guide. A block also removes any follow between the two accounts and unblocking doesn't restore it, so block then unblock removes a follower for good. Finding accounts is only a read: agents block, unblock, or remove only the accounts on a list the owner said yes to, never a whole follower or following list, confirm the count above 20 accounts, skip suspended or inactive accounts instead of retrying, and report what they did.
+- A write that changes more than 20 items, such as blocks, bookmark deletions, or list members, needs the owner's yes to the count and the items first.
+
 ## 2.11.1 — Find a contact's chat, X DMs only via send_chat_message
 
 - A new "Find or message a contact" section in the guide: find someone's thread with `get_chat_conversations` `participant_query` (their @username, `type` `direct`, `expansions` `participant_ids` to confirm it's them), keep paging while `has_more` is true, and retry with their @username, instead of scanning the inbox or looking the person up first.
